@@ -1,0 +1,17 @@
+.dialog-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+.delete-warning {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #606266;
+
+    .warning-icon {
+        color: #ed3336;
+        font-size: 20px;
+    }
+}
