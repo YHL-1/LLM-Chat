@@ -53,7 +53,7 @@ export default function Home() {
             </div>
           </div>
           <a
-            href="https://github.com/Solomon-He/LLM-chat"
+            href="https://github.com/YHL-1/LLM-Chat"
             target="_blank"
             rel="noopener noreferrer"
             className="github-link"
@@ -84,7 +84,7 @@ export default function Home() {
               <h3>文件支持</h3>
               <p>支持多种格式文件上传，增强信息输入</p>
               <p className="note">
-                注意：由于接口限制，后台无法读取到文件内容
+                支持文本文件内容读取和图片多模态识别
               </p>
             </div>
             <div className="feature-item">

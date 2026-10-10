@@ -26,9 +26,11 @@ const handleClick = (e) => {
 
 const [dialogVisible, setDialogVisible] = useState(false)
 const [dialogType, setDialogType] = useState('edit') // 'edit' or 'delete'
+const [targetConversationId, setTargetConversationId] = useState(null)
 
 const closeDialog = () => {
     setDialogVisible(false)
+    setTargetConversationId(null)
 }
 
 
@@ -96,6 +98,7 @@ const formatTitle = (title) => {
                                     className="action-btn"
                                     onClick={(e) => {
                                         e.stopPropagation()
+                                        setTargetConversationId(conversation.id)
                                         setDialogVisible(true)
                                         setDialogType('edit')
                                     }}
@@ -109,6 +112,7 @@ const formatTitle = (title) => {
                                     className="action-btn"
                                     onClick={(e) => {
                                         e.stopPropagation()
+                                        setTargetConversationId(conversation.id)
                                         setDialogVisible(true)
                                         setDialogType('delete')
                                     }}
@@ -125,7 +129,7 @@ const formatTitle = (title) => {
                 </div>
             </div>
 
-        <DialogEdit dialogVisible={dialogVisible} closeDialog={closeDialog} dialogType={dialogType}/> 
+        <DialogEdit dialogVisible={dialogVisible} closeDialog={closeDialog} dialogType={dialogType} targetId={targetConversationId}/>
     </div>
     </>
     )

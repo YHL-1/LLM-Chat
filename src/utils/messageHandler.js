@@ -4,6 +4,8 @@ export const messageHandle = {
         content,
         reasoning_content = '',
         files = [],
+        completion_tokens = 0,
+        speed = 0,
     ) {
         return {
             id: Date.now() + '-' + Math.random().toString(36).slice(2, 8),
@@ -11,8 +13,8 @@ export const messageHandle = {
             content,
             reasoning_content,
             files,
-            completion_tokens: 0,
-            speed: 0,
+            completion_tokens,
+            speed,
             loading: false,
         }
     },

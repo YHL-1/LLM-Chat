@@ -7,7 +7,7 @@ import {useChatStore} from '../../store/modules/chat'
 import { messageHandle } from '../../utils/messageHandler'
 import  createChatCompletion  from '../../utils/api'
 import {useState,useRef,useEffect} from 'react'
-import { useSettingStore } from '../../store/modules/setting'
+import { useSettingStore, modelOptions } from '../../store/modules/setting'
 import { useNavigate } from 'react-router-dom'
 import {Button,Tooltip } from 'antd'
 import './index.scss'
@@ -23,6 +23,7 @@ export default function Chat (){
 const currentChatId = useChatStore(s=>s.currentChatId)
 const conversations=useChatStore(s=>s.conversations)
 const addMessage=useChatStore(s=>s.addMessage)
+const removeLastMessages=useChatStore(s=>s.removeLastMessages)
 const loading=useChatStore(s=>s.isLoading)
 const setLoading = useChatStore(s => s.setLoading)
 const settingsStore = useSettingStore(s=>s.settings)
@@ -30,7 +31,7 @@ const createConversation=useChatStore(s=>s.createConversation)
 const updateLastMessage=useChatStore(s=>s.updateLastMessage)
 
 const currentConversation=conversations.find((item)=> item.id==currentChatId)
-const currentMessages=currentConversation.messages
+const currentMessages=currentConversation?.messages || []
 
 const currentTitle=currentConversation?.title || 'LLM Chat'
 
@@ -58,29 +59,57 @@ useEffect(() => {
     const dom=messagesContainer.current
       if(!dom) return
       dom.scrollTop=dom.scrollHeight
-    // ✅可选链防止conversations为undefined
     if (!conversations?.length) {
       createConversation()
     }
 },[])
 
 
-const handleSend = async () => {
+const handleSend = async (messageContent) => {
   try {
-        addMessage(messageHandle.formatMessage('assistant','',''))
+        if (messageContent) {
+            addMessage(messageHandle.formatMessage('user', messageContent.text, '', messageContent.files))
+        }
+
+        addMessage({...messageHandle.formatMessage('assistant','',''), loading: true})
 
         setLoading(true)
 
-        const { conversations, currentChatId } = useChatStore. getState ()
-        const currentConv = conversations. find ( c => c. id == currentChatId) 
-        const currentMessages = currentConv. messages
+        const { conversations, currentChatId } = useChatStore.getState()
+        const currentConv = conversations.find(c => c.id == currentChatId)
+        const currentMessages = currentConv?.messages || []
 
-        const lastMessage=currentMessages[currentMessages.length-1]
-        if(lastMessage)
-        setLoading(true)
+        const messages=currentMessages?.map((msg)=>{
+            // 无文件的消息直接返回文本内容
+            if (!msg.files || msg.files.length === 0) {
+                return { role: msg.role, content: msg.content }
+            }
+            // 有文件的消息构建多模态 content
+            const content = []
+            if (msg.content) {
+                content.push({ type: 'text', text: msg.content })
+            }
+            for (const file of msg.files) {
+                if (file.type === 'image' && file.content) {
+                    content.push({ type: 'image_url', image_url: { url: file.content } })
+                } else if (file.content) {
+                    content.push({ type: 'text', text: `文件 ${file.name} 的内容:\n${file.content}` })
+                } else {
+                    content.push({ type: 'text', text: `文件 ${file.name}（二进制格式，无法读取内容）` })
+                }
+            }
+            return { role: msg.role, content }
+        })
 
-        const messages=currentMessages?.map(({role,content})=>({role,content}))
-        
+        const hasImages = messages.some(msg =>
+            Array.isArray(msg.content) && msg.content.some(c => c.type === 'image_url')
+        )
+        const modelConfig = modelOptions.find(m => m.value === settingsStore.model)
+        if (hasImages && !modelConfig?.vision) {
+            updateLastMessage('对话中存在图片，当前模型不支持图片识别，请切换到支持视觉的模型（如 Qwen3-VL-8B-Instruct）后重试。')
+            return
+        }
+
         const response=await createChatCompletion(messages,settingsStore)
 
         await messageHandle.handleResponse(
@@ -99,8 +128,8 @@ const handleSend = async () => {
 }
 const handleRegenerate=async()=>{
   try{
-        const lastUserMessage=currentMessages[currentMessages?.length-2]
-        currentMessages?.splice(-2,2)
+        const lastUserMessage=currentMessages[currentMessages.length-2]
+        removeLastMessages(2)
         await handleSend({text:lastUserMessage.content,files:lastUserMessage.files})
     }catch(e){
         console.error('Failed to regenerate message',e)
@@ -158,8 +187,9 @@ const handleBack=async()=>{
          {/* 消息容器，显示对话消息  */}
         <div className="messages-container" ref={messagesContainer}>
              {currentMessages.length > 0 && currentMessages.map((message,index)=>(
-              <ChatMessage message={message}
-                    isLastAssistantMessage={index === currentMessages.length - 1 && message.role === 'assistant'} 
+              <ChatMessage key={message.id}
+                    message={message}
+                    isLastAssistantMessage={index === currentMessages.length - 1 && message.role === 'assistant'}
                     regenerate={handleRegenerate} />
             ))} 
             {currentMessages.length===0 && (

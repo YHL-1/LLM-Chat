@@ -1,15 +1,26 @@
-  import { useState} from 'react'
+  import { useState, useEffect } from 'react'
 import {useChatStore} from '../../store/modules/chat'
 import { WarningFilled } from '@ant-design/icons'
 import { Modal,Button,Input } from 'antd'
 export default function DialogEdit(props) {
 const currentChatId = useChatStore(s=>s.currentChatId)
+const conversations = useChatStore(s=>s.conversations)
 const updateConversationTitle = useChatStore(s=>s.updateConversationTitle)
 const removeConversation = useChatStore(s=>s.removeConversation)
 const dialogVisible = props.dialogVisible
 const closeDialog = props.closeDialog
-const dialogType = props.dialogType// 'edit' or 'delete'
+const dialogType = props.dialogType // 'edit' or 'delete'
+const targetId = props.targetId
+const editTargetId = targetId || currentChatId
 const [inputTitle, setInputTitle] = useState('')
+
+// 对话框打开时预填充当前对话标题
+useEffect(() => {
+    if (dialogVisible && dialogType === 'edit') {
+        const currentConv = conversations.find(c => c.id == editTargetId)
+        setInputTitle(currentConv?.title || '')
+    }
+}, [dialogVisible, dialogType, editTargetId, conversations])
 
 const handleConfirm = () => {
     if (dialogType == 'edit') {
@@ -17,11 +28,11 @@ const handleConfirm = () => {
             return
         }
         updateConversationTitle(
-            currentChatId,
+            editTargetId,
             inputTitle,
         )
     } else {
-        removeConversation(currentChatId)
+        removeConversation(editTargetId)
     }
     closeDialog()
     setInputTitle('')
@@ -44,7 +55,8 @@ const handleCancel = () => {
           <span className="dialog-footer">
                 <Button onClick={handleCancel}>取消</Button>
                 <Button
-                    type={dialogType === 'edit' ? 'primary' : 'danger'}
+                    type="primary"
+                    danger={dialogType === 'delete'}
                     onClick={handleConfirm}
                 >
                     { dialogType === 'edit' ? '确定' : '删除' }
@@ -56,11 +68,11 @@ const handleCancel = () => {
         {dialogType === 'edit' && <Input
                 value={inputTitle}
                 placeholder="请输入对话名称"
-                maxlength={50}
+                maxLength={50}
                 onChange={(e) => setInputTitle(e.target.value)}
             />}
         {/* 删除模式显示警告文本 */}
-        {dialogType === 'delete' && 
+        {dialogType === 'delete' &&
             <div className="delete-warning">
                 <WarningFilled />
                 <span>删除后，聊天记录将不可恢复。</span>

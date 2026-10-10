@@ -1,6 +1,6 @@
 import './searchDialog.scss'
 import ChatMessage from '../chat/ChatMessage.jsx'
-import {useState} from 'react'
+import {useState, useRef} from 'react'
 import enterIcon from '../../assets/images/回车.png'
 
 import {useSettingStore} from '../../store/modules/setting.js'
@@ -11,6 +11,7 @@ const settingsStore = useSettingStore(s=>s.settings)
 const [searchText, setSearchText] = useState('')
 const [messages, setMessages] = useState([])
 const [isLoading, setIsLoading] = useState(false)
+const inputRef = useRef(null)
 
 const aiMessage = 'Hi, 我是你的AI小助手，有什么问题都可以问我！'
 
@@ -21,39 +22,62 @@ const suggestedPrompts = [
     '喝酒脸红是会喝酒的表现吗？',
 ]
 
-const handleSend = async () => {
+const handleSend = async (messageContent) => {
   try {
-    const newMessages=[...messages,messageHandle.formatMessage('user',searchText),messageHandle.formatMessage('assistant','','')]
+    const hasContent = messageContent && typeof messageContent === 'object' && 'text' in messageContent
+    const text = hasContent ? messageContent.text : (inputRef.current?.value || searchText)
+    const files = hasContent ? (messageContent.files || []) : []
+
+    const userMessage = messageHandle.formatMessage('user', text, '', files)
+    const assistantPlaceholder = {...messageHandle.formatMessage('assistant', '', ''), loading: true}
+    const newMessages = [...messages, userMessage, assistantPlaceholder]
     setMessages(newMessages)
     setIsLoading(true)
+    setSearchText('')
 
-        const lastMessage=messages[messages.length-1]
-        if(lastMessage)
-        setIsLoading(true)
+        const requestMessages = newMessages
+            .filter(m => m.content || (m.files && m.files.length > 0))
+            .map((msg) => {
+                if (!msg.files || msg.files.length === 0) {
+                    return { role: msg.role, content: msg.content }
+                }
+                const content = []
+                if (msg.content) {
+                    content.push({ type: 'text', text: msg.content })
+                }
+                for (const file of msg.files) {
+                    if (file.type === 'image' && file.content) {
+                        content.push({ type: 'image_url', image_url: { url: file.content } })
+                    } else if (file.content) {
+                        content.push({ type: 'text', text: `文件 ${file.name} 的内容:\n${file.content}` })
+                    } else {
+                        content.push({ type: 'text', text: `文件 ${file.name}（二进制格式，无法读取内容）` })
+                    }
+                }
+                return { role: msg.role, content }
+            })
 
-        const requestMessages=newMessages?.map(({role,content})=>({role,content}))
-        console.log(requestMessages)
-        
         const response=await createChatCompletion(requestMessages,settingsStore)
 
         await messageHandle.handleResponse(
             response,
-            true,
+            settingsStore.stream,
             (content,reasoning_content,tokens,speed)=>{
-                setMessages([...newMessages,messageHandle.formatMessage('assistant',content,reasoning_content,tokens,speed)])
+                setMessages([...newMessages.slice(0, -1), messageHandle.formatMessage('assistant',content,reasoning_content,[],tokens,speed)])
             }
         )
     }catch(e){
         console.error('Failed to send message:', e)
-        setMessages([...messages,messageHandle.formatMessage('assistant','抱歉，发生了一些错误，请稍后重试。')])
+        setMessages([...newMessages.slice(0, -1), messageHandle.formatMessage('assistant','抱歉，发生了一些错误，请稍后重试。')])
     }finally{
         setIsLoading(false)
     }
 }
 const handleRegenerate=async()=>{
   try{
-        const lastUserMessage=messages[messages?.length-2]
-        setMessages(messages.slice(0,-2))
+        const lastUserMessage=messages[messages.length-2]
+        const newMessages=messages.slice(0,-2)
+        setMessages(newMessages)
         await handleSend({text:lastUserMessage.content,files:lastUserMessage.files})
     }catch(e){
         console.error('Failed to regenerate message',e)
@@ -65,6 +89,7 @@ return (<>
         <div className="search-header">
             <div className="search-input">
                 <input
+                    ref={inputRef}
                     type="text"
                     value={searchText}
                     placeholder="提问"
@@ -78,7 +103,7 @@ return (<>
                 />
                 <button
                     className="action-btn"
-                    onClick={handleSend}
+                    onClick={() => handleSend()}
                     disabled={isLoading}
                 >
                     <img src={enterIcon} alt="enter" />

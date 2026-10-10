@@ -2,7 +2,8 @@ import { useEffect,useMemo} from 'react'
 import {useSettingStore,modelOptions} from "../../store/modules/setting";
 import './SettingsPanel.scss'
 import { QuestionCircleFilled } from '@ant-design/icons';
-import { Drawer, Select, Switch, Input, Slider, InputNumber, Tooltip } from 'antd';
+import { Drawer, Select, Switch, Input, Slider, InputNumber, Tooltip, message } from 'antd';
+import { useChatStore } from '../../store/modules/chat';
 
 export default function SettingsPanel(props) {
 //控制抽屉展示
@@ -38,11 +39,27 @@ useEffect(() => {
                 <div className="setting-label">Model</div>
                 <Select
                     value={settings.model}
-                    onChange={(value) => updateSetting('model', value)}
+                    onChange={(value) => {
+                        updateSetting('model', value)
+                        const { conversations, currentChatId } = useChatStore.getState()
+                        const currentConv = conversations.find(c => c.id == currentChatId)
+                        const hasImages = currentConv?.messages?.some(msg =>
+                            msg.files?.some(f => f.type === 'image')
+                        )
+                        const newModel = modelOptions.find(m => m.value === value)
+                        if (hasImages && !newModel?.vision) {
+                            message.warning('当前对话包含图片，该模型不支持图片识别，发送时将报错。请切换到支持视觉的模型。')
+                        }
+                    }}
                     className="model-select"
                     placeholder="选择模型"
                     options={modelOptions.map((option) => ({
-                        label: option.label,
+                        label: (
+                            <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span>{option.label}</span>
+                                {option.free && <span style={{ fontSize: '12px', color: '#52c41a', fontWeight: 500 }}>免费</span>}
+                            </span>
+                        ),
                         value: option.value,
                     }))}
                 >

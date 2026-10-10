@@ -57,7 +57,7 @@ const handleLike = () => {
 
 // 处理踩
 const handleDislike = () => {
-    if (isLiked.value) setIsLiked(false)
+    if (isLiked) setIsLiked(false)
     setIsDisliked(!isDisliked)
 }
 
